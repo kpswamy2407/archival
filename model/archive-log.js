@@ -1,0 +1,72 @@
+var Sequelize = require("sequelize");
+module.exports=(sequelize,DataTypes)=>{
+    const ArchiveLog=sequelize.define('ArchiveLog',{
+        vt_tabid:{
+            type:DataTypes.INTEGER(19),
+            defaultValue:null,
+        },
+        module_name:{
+            type:DataTypes.STRING(100),
+            defaultValue:null,
+        },
+        status:{
+            type:DataTypes.INTEGER(2),
+            defaultValue:0,
+        },
+        process_date:{
+            type:DataTypes.DATE,
+            defaultValue:Sequelize.literal('CURRENT_TIMESTAMP'),
+        },
+        insert_duration:{
+            type:DataTypes.STRING(10),
+            defaultValue:null,
+        },
+        ins_rows:{
+            type:DataTypes.STRING(11),
+            defaultValue:0,
+        },
+        del_duration:{
+            type:DataTypes.STRING(10),
+            defaultValue:null,
+        },
+        del_rows:{
+            type:DataTypes.STRING(11),
+            defaultValue:0,
+        },
+        err_msg:{
+            type:DataTypes.STRING(1000),
+            defaultValue:null,
+        },
+        ins_st_time:{
+            type:DataTypes.DATE,
+            defaultValue:null,
+        },
+        ins_end_time:{
+            type:DataTypes.DATE,
+            defaultValue:null,
+        },
+        del_st_time:{
+            type:DataTypes.DATE,
+            defaultValue:null,
+        },
+        del_end_time:{
+            type:DataTypes.DATE,
+            defaultValue:null,
+        },
+        sel_query:{
+            type:DataTypes.TEXT,
+            defaultValue:null,
+        },
+        del_query:{
+            type:DataTypes.TEXT,
+            defaultValue:null,
+        },
+
+    },{
+        tableName:'archival_status_log',
+        timestamps:false,
+        freezeTableName:true,
+    });
+    ArchiveLog.removeAttribute('id');
+   return ArchiveLog;
+};
