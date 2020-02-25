@@ -1,6 +1,10 @@
+require('dotenv').config({
+    path:'./config/.env'
+});
 const Log=require('../helper/log');
 var moment = require('moment');
 const { QueryTypes } = require('sequelize');
+var forEach = require('async-foreach').forEach;
 var ArchiveCtrl=(function(){
     function ArchiveCtrl(source,destination){
         Object.defineProperty(this,'source',{
@@ -16,66 +20,94 @@ var ArchiveCtrl=(function(){
             enumerable:true,
         });
     }
+    ArchiveCtrl.prototype.sleep=async function (ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+   }
+   ArchiveCtrl.prototype.asyncForEach = async (array, callback) => {
+        for (let index = 0; index < array.length; index++) {
+            await callback(array[index], index, array)
+        }
+    }
+
     ArchiveCtrl.prototype.doArchive= async function(){
         try{
             var ArchiveLog=this.source.import('../model/archive-log');
             var self=this;
             var queries=await this.getQueries();
+            var deleteQueries=[];
             if(queries){
-               return await queries.reduce(async (promise, query) => {
-                    console.log(query['id'],'=>',query['vt_tabid'],'=>',query['sequence']);
+                const start = async () => {
+                  await self.asyncForEach(queries, async (query) => {
+                   await self.sleep(1000);
                     var log=new ArchiveLog();
                     log['vt_tabid']=query['vt_tabid'];
                     log['module_name']=query['module_name'];
                     log['process_date']=moment().format('YYYY-MM-DD HH:mm:ss');
                     log['sel_query']=query['sel_query_template'];
                     log['del_query']=query['del_query_template'];
-                    var count_query=await self.getCountQuery(query['sel_query_template']);
+                    var count_query=self.getCountQuery(query['sel_query_template']);
                     var {no_of_rows,error}=await self.getNoRows(count_query);
+                    
                     if(no_of_rows>0 && error==0){
                         var {error,table}=await self.getArchiveTable(query['sel_query_template']);   
+                        
                         if(error==0){
                             log['ins_st_time']=moment().format('YYYY-MM-DD HH:mm:ss');
+                            var insert_st_time=moment();
                             var {error,no_of_rows_inserted}= await self.insertData(table,query['sel_query_template']);
+                            console.log(query['module_name'],'=> Insert =>',no_of_rows_inserted);
                             if(error==0 && no_of_rows_inserted>0){
                                 log['ins_rows']=no_of_rows_inserted;
                                 log['ins_end_time']=moment().format('YYYY-MM-DD HH:mm:ss');
-                                //log['insert_duration'] = moment.duration(new moment().diff(log['ins_end_time']))
+                                var insert_end_time=moment();
+                                log['insert_duration'] = insert_end_time.diff(insert_st_time,'seconds',true);
                                 log['del_st_time']=moment().format('YYYY-MM-DD HH:mm:ss');
+                                  var delete_st_time=moment();
                                 var {del_err,deleted_rows}=await self.deleteData(query['del_query_template']);
                                 if(del_err==0){
                                     log['status']=1;
                                     log['del_end_time']=moment().format('YYYY-MM-DD HH:mm:ss');
-                                    //log['del_duration'] = moment.duration(new moment().diff(log['del_end_time']))
+                                    var delete_end_time=moment();
+                                    log['del_duration'] = delete_end_time.diff(delete_st_time,'seconds',true);
                                     log['err_msg']="Archived successfully!";
                                     log['del_rows']=no_of_rows_inserted;
-                                    log.save();
+                                    await log.save();
                                 }
                                 else{
-
+                                  log['status']=2;
+                                  log['err_msg']=deleted_rows;
+                                  await log.save(); 
                                 }
-                            }
+                            
+                            deleteQueries.push(query['del_query_template']);
+                        }
                             else{
                                 log['status']=2;
                                 log['err_msg']=no_of_rows_inserted;
-                                log.save(); 
+                                await log.save(); 
                             }
                         }
                         else{
                             log['status']=2;
                             log['err_msg']=error;
-                            log.save();  
+                            await log.save();  
                         }
                     }
                     else{
                         log['status']=2;
                         log['err_msg']=error;
 
-                        log.save();
+                       await log.save();
                     }
+                    await self.sleep(1000);
                     
-
-                }, Promise.resolve());
+                  })
+                  console.log('Done')
+                }
+                await start();
+               
+               return Promise.resolve("Data archived, Please check log for complete details");
+                
             }
             else{
                 return Promise.reject("No queries found to do archive");
@@ -90,14 +122,15 @@ var ArchiveCtrl=(function(){
         return await this.destination.query(insert_query,{type:QueryTypes.INSERT}).then(res=>{
             return {error:0,no_of_rows_inserted:res[1]}
         }).catch(e=>{
-            return {error:1,no_of_rows_inserted:e.error};
+            return {error:1,no_of_rows_inserted:e.message};
         })
     }
     ArchiveCtrl.prototype.deleteData=async function(del_query){
+        var self=this;
         return await this.source.query(del_query,{type:QueryTypes.DELETE}).then(res=>{
             return {del_err:0, deleted_rows:0}
         }).catch(e=>{
-            return {del_err:1, deleted_rows:e.Error}
+            return {del_err:1, deleted_rows:e.message}
         });
     }
     ArchiveCtrl.prototype.getArchiveTable=async function(sel_query){
@@ -112,12 +145,13 @@ var ArchiveCtrl=(function(){
             return {error:1,table:e.message};
         });
     }
-    ArchiveCtrl.prototype.getCountQuery=async function(sel_query){
+    ArchiveCtrl.prototype.getCountQuery= function(sel_query){
         var regex = /SELECT \*/i;
         return sel_query.replace(regex,'SELECT count(1) as no_of_rows');
     }
 
     ArchiveCtrl.prototype.getNoRows=async function(count_query){
+
         return await this.source.query(count_query,{ type: QueryTypes.SELECT }).spread(result=>{
                         if(result.no_of_rows>0){
                             return {no_of_rows:result.no_of_rows,error:0};
@@ -131,7 +165,7 @@ var ArchiveCtrl=(function(){
     }
     ArchiveCtrl.prototype.getQueries=async function(){
         var ArchiveQuery=this.source.import('../model/archive-query');
-        return ArchiveQuery.findAll({
+        return await ArchiveQuery.findAll({
             order: [
                 ['module_name', 'ASC'],
                 ['vt_tabid', 'ASC'],
@@ -145,6 +179,7 @@ var ArchiveCtrl=(function(){
                 return false;
             }
         }).catch(e=>{
+            
             return false;
         });
     }

@@ -1,6 +1,8 @@
 var express = require('express');
 var router = express.Router();
 var ArchiveCtrl=require('./../controller/archive-ctrl');
+var source=require('./../config/source');
+var destination=require('./../config/destination');
 
 /* GET home page. */
 router.get('/archive', async function(req, res, next) {
@@ -13,6 +15,11 @@ router.get('/archive', async function(req, res, next) {
   		return res.json({
   			status:200,
   			messege:'Data achival process completed, Please check the log for complete status',
+  		})
+  	}).catch(e=>{
+  		return res.json({
+  			status:201,
+  			messege:e,
   		})
   	});
   }
