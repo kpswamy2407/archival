@@ -34,7 +34,7 @@ var ArchiveCtrl=(function(){
             var ArchiveLog=this.source.import('../model/archive-log');
             var self=this;
             var queries=await this.getQueries();
-            var deleteQueries=[];
+           
             if(queries){
                 const start = async () => {
                   await self.asyncForEach(queries, async (query) => {
@@ -79,7 +79,7 @@ var ArchiveCtrl=(function(){
                                   await log.save(); 
                                 }
                             
-                            deleteQueries.push(query['del_query_template']);
+                            
                         }
                             else{
                                 log['status']=2;
