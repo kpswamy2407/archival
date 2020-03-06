@@ -127,11 +127,17 @@ var ArchiveCtrl=(function(){
     }
     ArchiveCtrl.prototype.deleteData=async function(del_query){
         var self=this;
-        return await this.source.query(del_query,{type:QueryTypes.DELETE}).then(res=>{
+        if(del_query.length>0 && del_query!=''){
+           return await this.source.query(del_query,{type:QueryTypes.DELETE}).then(res=>{
             return {del_err:0, deleted_rows:0}
-        }).catch(e=>{
+            }).catch(e=>{
             return {del_err:1, deleted_rows:e.message}
-        });
+            }); 
+        }
+        else{
+            return {del_err:0, deleted_rows:0}
+        }
+        
     }
     ArchiveCtrl.prototype.getArchiveTable=async function(sel_query){
         var query_before_where=sel_query.match(/WHERE\b/i);
@@ -168,8 +174,7 @@ var ArchiveCtrl=(function(){
         return await ArchiveQuery.findAll({
             order: [
                 ['module_name', 'ASC'],
-                ['vt_tabid', 'ASC'],
-                ['sequence', 'ASC'],
+                ['sequence', 'DESC'],
             ],
         }).then(queries=>{
             if(queries){
