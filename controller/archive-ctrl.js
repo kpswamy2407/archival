@@ -38,7 +38,7 @@ var ArchiveCtrl=(function(){
             if(queries){
                 const start = async () => {
                   await self.asyncForEach(queries, async (query) => {
-                   await self.sleep(1000);
+                   //await self.sleep(100);
                     var log=new ArchiveLog();
                     log['vt_tabid']=query['vt_tabid'];
                     log['module_name']=query['module_name'];
@@ -46,6 +46,7 @@ var ArchiveCtrl=(function(){
                     log['sel_query']=query['sel_query_template'];
                     log['del_query']=query['del_query_template'];
                     var count_query=self.getCountQuery(query['sel_query_template']);
+                    console.log(count_query);
                     var {no_of_rows,error}=await self.getNoRows(count_query);
                     
                     if(no_of_rows>0 && error==0){
@@ -99,7 +100,7 @@ var ArchiveCtrl=(function(){
 
                        await log.save();
                     }
-                    await self.sleep(1000);
+                    //await self.sleep(100);
                     
                   })
                   console.log('Done')
@@ -113,16 +114,77 @@ var ArchiveCtrl=(function(){
                 return Promise.reject("No queries found to do archive");
             }
         }catch(e){
+            console.log(e);
             return Promise.reject(e.message);
         }
     }
     ArchiveCtrl.prototype.insertData=async function(dest_table,sel_query){
+        var self=this;
         var source_database=this.source.getDatabaseName();
-        var insert_query="insert into "+dest_table+" "+sel_query;
-        return await this.destination.query(insert_query,{type:QueryTypes.INSERT}).then(res=>{
-            return {error:0,no_of_rows_inserted:res[1]}
+        if(process.env.FNXT_DESTINATION_DB==process.env.FNXT_SOURCE_DB){
+            var insert_query="insert into "+dest_table+" "+sel_query;
+            return await this.destination.query(insert_query,{type:QueryTypes.INSERT}).then(res=>{
+                console.log(res);
+                return {error:0,no_of_rows_inserted:res[1]}
+            }).catch(e=>{
+                console.log(e);
+                return {error:1,no_of_rows_inserted:e.message};
+            })
+        }
+        else{
+            
+            
+            var selectResults=await self.getSelQueryResult(sel_query);
+            //console.log(selectResults.length);
+            var noI=0;
+            const prepare_insert = async () => {
+
+                
+                await self.asyncForEach(selectResults, async (result) => {
+                      var values=[];
+                    const do_insert=async()=>{
+                       
+                        await self.asyncForEach(result,async(res)=>{
+                            values.push(Object.values(res));
+                        });
+                        console.log('do insert done');
+                    }
+                    await do_insert();
+                    //console.log(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`);
+                    await self.destination.query(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`,{type:QueryTypes.INSERT, replacements:values}).then(res=>{
+                           console.log(res);
+                           noI=noI+res[1];
+                       }).catch(e=>{
+                          console.log(e);
+                       })
+                    
+                })
+              console.log('prepare Done')
+            }
+            await prepare_insert();
+            //console.log(values);
+
+             
+              
+            return Promise.resolve({error:0,no_of_rows_inserted:noI});
+                
+        }
+        
+        
+    }
+    ArchiveCtrl.prototype.getSelQueryResult=async function(sel_query){
+        var self=this;
+        return await this.source.query(sel_query,{type:QueryTypes.SELECT}).then(res=>{
+            const chunked_arr = [];
+              let copied = [...res]; // ES6 destructuring
+              const numOfChild = Math.ceil(copied.length / 10000); // Round up to the nearest integer
+              for (let i = 0; i < numOfChild; i++) {
+                chunked_arr.push(copied.splice(0, 10000));
+              }
+              return chunked_arr;
         }).catch(e=>{
-            return {error:1,no_of_rows_inserted:e.message};
+            console.log(e);
+            return e.message;
         })
     }
     ArchiveCtrl.prototype.deleteData=async function(del_query){
@@ -142,17 +204,33 @@ var ArchiveCtrl=(function(){
     ArchiveCtrl.prototype.getArchiveTable=async function(sel_query){
         var query_before_where=sel_query.match(/WHERE\b/i);
         var query_before_where=sel_query.slice(0,query_before_where.index+5);
-        var source_table=query_before_where.match(new RegExp('FROM' + "(.*)" + 'WHERE','i'))[1].replace(/\s/g, "");
-        var dest_table=source_table+'_'+process.env.FNXT_ARCHIVE_TABLE_POSTFIX;
-        var dest_table_creation_query="CREATE TABLE IF NOT EXISTS "+dest_table+" LIKE "+source_table;
+        var destMatch=query_before_where.match(new RegExp('FROM' + "(.*)" + ' WHERE','i'));
+        if(destMatch==null){
+             var source_table=query_before_where.match(new RegExp('FROM' + "(.*)" ,'i'))[1].replace(/\s/g, "");    
+        }
+        else{
+            var source_table=query_before_where.match(new RegExp('FROM' + "(.*)" + 'WHERE','i'))[1].replace(/\s/g, "");
+        }
+        
+        var dest_table=source_table+process.env.FNXT_ARCHIVE_TABLE_POSTFIX;
+        if(process.env.FNXT_DESTINATION_DB==process.env.FNXT_SOURCE_DB){
+            var dest_table_creation_query="CREATE TABLE IF NOT EXISTS "+dest_table+" LIKE "+source_table;
+            
+        }
+        else{
+        var dest_table_creation_query="CREATE TABLE IF NOT EXISTS "+dest_table+" LIKE "+ process.env.FNXT_SOURCE_DB+"."+source_table;
+
+        }
         return await this.destination.query(dest_table_creation_query,{type:QueryTypes.RAW}).then(res=>{
             return {error:0,table:dest_table};
         }).catch(e=>{
+            console.log(e);
             return {error:1,table:e.message};
         });
     }
     ArchiveCtrl.prototype.getCountQuery= function(sel_query){
-        var regex = /SELECT \*/i;
+        var regex = /SELECT \s?(.*?)\*/i;
+        
         return sel_query.replace(regex,'SELECT count(1) as no_of_rows');
     }
 
