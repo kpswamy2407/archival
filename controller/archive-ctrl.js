@@ -4,7 +4,7 @@ require('dotenv').config({
 const Log=require('../helper/log');
 var moment = require('moment');
 const { QueryTypes } = require('sequelize');
-var forEach = require('async-foreach').forEach;
+
 var ArchiveCtrl=(function(){
     function ArchiveCtrl(source,destination){
         Object.defineProperty(this,'source',{
@@ -57,7 +57,7 @@ var ArchiveCtrl=(function(){
                             var insert_st_time=moment();
                             var {error,no_of_rows_inserted}= await self.insertData(table,query['sel_query_template']);
                             console.log(query['module_name'],'=> Insert =>',no_of_rows_inserted);
-                            if(error==0 && no_of_rows_inserted>0){
+                            if(error==0){
                                 log['ins_rows']=no_of_rows_inserted;
                                 log['ins_end_time']=moment().format('YYYY-MM-DD HH:mm:ss');
                                 var insert_end_time=moment();
@@ -139,7 +139,7 @@ var ArchiveCtrl=(function(){
                 return {error:1,no_of_rows_inserted:selectResults};
             }
             else{
-               //console.log(selectResults.length);
+               console.log(selectResults.length);
             var noI=0;
             const prepare_insert = async () => {
 
@@ -154,7 +154,7 @@ var ArchiveCtrl=(function(){
                         console.log('do insert done');
                     }
                     await do_insert();
-                    //console.log(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`);
+                    console.log(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`);
                     await self.destination.query(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`,{type:QueryTypes.INSERT, replacements:values}).then(res=>{
                            console.log(res);
                            noI=noI+res[1];
@@ -185,6 +185,7 @@ var ArchiveCtrl=(function(){
               }
               return {error:0,selectResults:selectResults};
         }).catch(e=>{
+            console.log(e)
             return {error:1,selectResults:e.message};
         })
     }
