@@ -46,7 +46,7 @@ var ArchiveCtrl=(function(){
                     log['sel_query']=query['sel_query_template'];
                     log['del_query']=query['del_query_template'];
                     var count_query=self.getCountQuery(query['sel_query_template']);
-                    console.log(count_query);
+                   
                     var {no_of_rows,error}=await self.getNoRows(count_query);
                     
                     if(no_of_rows>0 && error==0){
@@ -114,7 +114,7 @@ var ArchiveCtrl=(function(){
                 return Promise.reject("No queries found to do archive");
             }
         }catch(e){
-            console.log(e);
+           
             return Promise.reject(e.message);
         }
     }
@@ -124,18 +124,22 @@ var ArchiveCtrl=(function(){
         if(process.env.FNXT_DESTINATION_DB==process.env.FNXT_SOURCE_DB){
             var insert_query="insert into "+dest_table+" "+sel_query;
             return await this.destination.query(insert_query,{type:QueryTypes.INSERT}).then(res=>{
-                console.log(res);
+               
                 return {error:0,no_of_rows_inserted:res[1]}
             }).catch(e=>{
-                console.log(e);
+                
                 return {error:1,no_of_rows_inserted:e.message};
             })
         }
         else{
             
             
-            var selectResults=await self.getSelQueryResult(sel_query);
-            //console.log(selectResults.length);
+            var {error,selectResults}=await self.getSelQueryResult(sel_query);
+            if(error==1){
+                return {error:1,no_of_rows_inserted:selectResults};
+            }
+            else{
+               //console.log(selectResults.length);
             var noI=0;
             const prepare_insert = async () => {
 
@@ -162,11 +166,9 @@ var ArchiveCtrl=(function(){
               console.log('prepare Done')
             }
             await prepare_insert();
-            //console.log(values);
-
-             
-              
-            return Promise.resolve({error:0,no_of_rows_inserted:noI});
+            return Promise.resolve({error:0,no_of_rows_inserted:noI}); 
+            }
+            
                 
         }
         
@@ -175,16 +177,15 @@ var ArchiveCtrl=(function(){
     ArchiveCtrl.prototype.getSelQueryResult=async function(sel_query){
         var self=this;
         return await this.source.query(sel_query,{type:QueryTypes.SELECT}).then(res=>{
-            const chunked_arr = [];
+            const selectResults = [];
               let copied = [...res]; // ES6 destructuring
               const numOfChild = Math.ceil(copied.length / 10000); // Round up to the nearest integer
               for (let i = 0; i < numOfChild; i++) {
-                chunked_arr.push(copied.splice(0, 10000));
+                selectResults.push(copied.splice(0, 10000));
               }
-              return chunked_arr;
+              return {error:0,selectResults:selectResults};
         }).catch(e=>{
-            console.log(e);
-            return e.message;
+            return {error:1,selectResults:e.message};
         })
     }
     ArchiveCtrl.prototype.deleteData=async function(del_query){
