@@ -161,11 +161,13 @@ var ArchiveCtrl=(function(){
                        }).catch(e=>{
                           console.log(e);
                        })
+                    delete values;
                     
                 })
               console.log('prepare Done')
             }
             await prepare_insert();
+            delete selectResults;
             return Promise.resolve({error:0,no_of_rows_inserted:noI}); 
             }
             
@@ -179,9 +181,9 @@ var ArchiveCtrl=(function(){
         return await this.source.query(sel_query,{type:QueryTypes.SELECT}).then(res=>{
             const selectResults = [];
               let copied = [...res]; // ES6 destructuring
-              const numOfChild = Math.ceil(copied.length / 10000); // Round up to the nearest integer
+              const numOfChild = Math.ceil(copied.length / 5000); // Round up to the nearest integer
               for (let i = 0; i < numOfChild; i++) {
-                selectResults.push(copied.splice(0, 10000));
+                selectResults.push(copied.splice(0, 5000));
               }
               return {error:0,selectResults:selectResults};
         }).catch(e=>{
