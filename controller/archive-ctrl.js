@@ -132,6 +132,17 @@ var ArchiveCtrl=(function(){
             })
         }
         else{
+
+            var insert_query="insert into "+process.env.FNXT_DESTINATION_DB+'.'+dest_table+" "+sel_query;
+            return await this.source.query(insert_query,{type:QueryTypes.INSERT}).then(res=>{
+               
+                return {error:0,no_of_rows_inserted:res[1]}
+            }).catch(e=>{
+                
+                return {error:1,no_of_rows_inserted:e.message};
+            });
+
+        /*
             
             
             var {error,selectResults}=await self.getSelQueryResult(sel_query);
@@ -154,7 +165,7 @@ var ArchiveCtrl=(function(){
                         console.log('do insert done');
                     }
                     await do_insert();
-                    console.log(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`);
+                    //console.log(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`);
                     await self.destination.query(`INSERT INTO ${dest_table} VALUES ${values.map(a => '(?)').join(',')};`,{type:QueryTypes.INSERT, replacements:values}).then(res=>{
                            console.log(res);
                            noI=noI+res[1];
@@ -172,7 +183,7 @@ var ArchiveCtrl=(function(){
             }
             
                 
-        }
+        */}
         
         
     }
@@ -181,9 +192,9 @@ var ArchiveCtrl=(function(){
         return await this.source.query(sel_query,{type:QueryTypes.SELECT}).then(res=>{
             const selectResults = [];
               let copied = [...res]; // ES6 destructuring
-              const numOfChild = Math.ceil(copied.length / 5000); // Round up to the nearest integer
+              const numOfChild = Math.ceil(copied.length / 10000); // Round up to the nearest integer
               for (let i = 0; i < numOfChild; i++) {
-                selectResults.push(copied.splice(0, 5000));
+                selectResults.push(copied.splice(0, 10000));
               }
               return {error:0,selectResults:selectResults};
         }).catch(e=>{
