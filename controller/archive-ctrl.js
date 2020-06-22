@@ -227,7 +227,7 @@ var ArchiveCtrl=(function(){
             var source_table=query_before_where.match(new RegExp('FROM' + "(.*)" + 'WHERE','i'))[1].replace(/\s/g, "");
         }
         
-        var dest_table=source_table+process.env.FNXT_ARCHIVE_TABLE_POSTFIX;
+        var dest_table=process.env.FNXT_ARCHIVE_TABLE_POSTFIX+source_table;
         if(process.env.FNXT_DESTINATION_DB==process.env.FNXT_SOURCE_DB){
             var dest_table_creation_query="CREATE TABLE IF NOT EXISTS "+dest_table+" LIKE "+source_table;
             
